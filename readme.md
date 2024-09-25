@@ -45,19 +45,19 @@ To start using the COM Port Mirror Client, run the script with the appropriate a
 1. **Receive Mode**: Mirror data from `COM1` to `COM2` and `COM3`, with a baud rate of 19200.
 
    ```bash
-   python com_port_mirror.py -i COM1 -o COM2 COM3 -b 19200
+   python ComportMirrorClient.py -i COM1 -o COM2 COM3 -b 19200
    ```
 
 2. **Replay Mode**: Replay data from a log file to `COM2` and `COM3`.
 
    ```bash
-   python com_port_mirror.py -m replay -r serial_log_20230915.txt -o COM2 COM3
+   python ComportMirrorClient.py -m replay -r serial_log_20230915.txt -o COM2 COM3
    ```
 
 3. **Custom Configuration**: Receive data on `COM1`, output to `COM2` and `COM3`, with 9600 baud rate, no parity, 1 stop bit, and 8 data bits.
 
    ```bash
-   python com_port_mirror.py -i COM1 -o COM2 COM3 -b 9600 -p N -s 1 -z 8
+   python ComportMirrorClient.py -i COM1 -o COM2 COM3 -b 9600 -p N -s 1 -z 8
    ```
 
 ### Stopping the Program

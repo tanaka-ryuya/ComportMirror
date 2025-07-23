@@ -40,36 +40,59 @@ class ComPortMirrorClient:
         while not self.stop_event.is_set():
             print(f"Trying to open serial port {self.input_port}...")
             try:
-                with serial.Serial(self.input_port, self.baud_rate, timeout=2,
-                                   parity=self.parity, stopbits=self.stopbits, bytesize=self.bytesize) as input_serial:
-                    output_serials = [serial.Serial(port, self.baud_rate, timeout=2, write_timeout=0,
+                with serial.Serial(self.input_port, self.baud_rate, timeout=0.1,
+                                parity=self.parity, stopbits=self.stopbits, bytesize=self.bytesize) as input_serial:
+                    output_serials = [serial.Serial(port, self.baud_rate, timeout=0.1, write_timeout=0.5,
                                                     parity=self.parity, stopbits=self.stopbits, bytesize=self.bytesize)
-                                      for port in self.output_ports]
+                                    for port in self.output_ports]
 
-                    print(f"Mirroring data from {self.input_port} to {', '.join(self.output_ports)} and logging to {log_filename}...")
+                    print(f"Mirroring STX–ETX frames from {self.input_port} to {', '.join(self.output_ports)} and logging to {log_filename}...")
+
+                    buffer = bytearray()
+                    in_frame = False
 
                     with open(log_filename, 'a') as log_file:
                         while not self.stop_event.is_set():
-                            data = input_serial.read(88)
-                            if data:
-                                timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
-                                hex_data = data.hex().upper()
-                                log_file.write(f"{timestamp},{hex_data}\n")
-                                log_file.flush()
-                                print(f"Received at {timestamp}: {hex_data}")
+                            if input_serial.in_waiting > 0:
+                                byte = input_serial.read(1)
+                                if not byte:
+                                    continue
 
-                                for output_serial in output_serials:
-                                    output_serial.write(data)
+                                b = byte[0]
 
+                                if b == 0x02:  # STX
+                                    buffer = bytearray()
+                                    buffer.append(b)
+                                    in_frame = True
+                                elif in_frame:
+                                    buffer.append(b)
+                                    if b == 0x03:  # ETX
+                                        # フレーム完了
+                                        timestamp = datetime.now().strftime("%Y-%m-%d %H:%M:%S.%f")[:-3]
+                                        hex_data = buffer.hex().upper()
+                                        log_file.write(f"{timestamp},{hex_data}\n")
+                                        log_file.flush()
+                                        print(f"Received at {timestamp}: {hex_data}")
+
+                                        for output_serial in output_serials:
+                                            try:
+                                                output_serial.write(buffer)
+                                            except Exception as e:
+                                                print(f"[ERROR] Write failed on {output_serial.port}: {e}")
+                                        in_frame = False
+                                    elif len(buffer) > 2048:
+                                        # フレーム長が異常に長い場合リセット
+                                        print("[WARN] Frame too long, resetting buffer")
+                                        in_frame = False
             except serial.SerialException as e:
-                print(f"Error: Could not open serial port {self.input_port}. Retrying in 1 second... {e}")
+                print(f"[ERROR] Could not open serial port {self.input_port}. Retrying in 1 second... {e}")
                 time.sleep(1)
-
             except Exception as e:
-                print(f"Unexpected error occurred: {e}")
+                print(f"[FATAL] Unexpected error occurred: {e}")
                 break
 
             print("Exiting receive mode...")
+
 
     def replay_mode(self):
         if not self.replay_file or not os.path.exists(self.replay_file):
